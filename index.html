@@ -44,6 +44,15 @@ main{flex:1;overflow-y:auto;padding:6px 16px 140px;-webkit-overflow-scrolling:to
 .seg .tx[contenteditable="true"]:focus{background:var(--panel)}
 .hide-ts .seg .ts{display:none}
 #interim{color:var(--muted);font-size:var(--fs);line-height:1.5}
+.trl{display:block;color:#93c9a6;font-size:calc(var(--fs) * .86);line-height:1.45;margin-top:4px}
+.trl:empty{display:none}
+.trl.wait:empty{display:block}
+.trl.wait:empty:before{content:"กำลังแปล…";color:#5d7d68;font-size:12px}
+.no-tr .trl,.no-tr #interimTr{display:none}
+#interimTr{color:#5d8a6c;font-size:calc(var(--fs) * .86);line-height:1.45;margin-top:2px}
+.chip{font-size:12px;padding:5px 9px;border-radius:8px;background:var(--panel2);color:var(--muted)}
+.chip.on{background:#23392b;color:#9fd5b0}
+input.wide,select.wide{width:100%}
 
 .bottombar{position:fixed;left:0;right:0;bottom:0;padding:12px 18px calc(var(--safe-b) + 14px);
   background:linear-gradient(transparent,var(--bg) 30%);display:flex;align-items:center;justify-content:space-between}
@@ -112,6 +121,7 @@ textarea#dict{width:100%;min-height:180px;font-family:ui-monospace,Menlo,monospa
   <span id="timer">00:00</span>
   <span id="wc">0 คำ</span>
   <span class="spacer"></span>
+  <button class="chip" id="trChip">แปล</button>
   <select id="langSel" aria-label="Language">
     <option value="en-US">English (US)</option>
     <option value="en-GB">English (UK)</option>
@@ -126,6 +136,7 @@ textarea#dict{width:100%;min-height:180px;font-family:ui-monospace,Menlo,monospa
 <main id="main">
   <div id="segs"></div>
   <div id="interim"></div>
+  <div id="interimTr"></div>
   <div class="empty" id="empty">
     กดปุ่ม <b>●</b> ด้านล่างเพื่อเริ่มถอดเสียง<br>
     ข้อความจะขึ้นแบบ real time<br>
@@ -161,6 +172,8 @@ textarea#dict{width:100%;min-height:180px;font-family:ui-monospace,Menlo,monospa
   <button class="btn" id="copyClaudeBtn">📋 Copy พร้อม prompt สำหรับ Claude<small>แปะในแชทได้เลย — ให้ช่วยเกลาศัพท์แพทย์ จัดเป็นโน้ต และใส่ reference</small></button>
   <button class="btn" id="copyPlainBtn">📄 Copy ข้อความล้วน</button>
   <button class="btn" id="copyTsBtn">⏱ Copy พร้อม timestamp</button>
+  <button class="btn" id="copyTrBtn">🌐 Copy ต้นฉบับ + คำแปล</button>
+  <button class="btn" id="copyTrOnlyBtn">🌐 Copy เฉพาะคำแปล</button>
   <button class="btn" id="shareBtn">↗︎ Share (Notes, LINE, Mail…)</button>
   <button class="btn" id="dlBtn">⬇︎ Download ไฟล์ .txt</button>
 </div>
@@ -177,6 +190,19 @@ textarea#dict{width:100%;min-height:180px;font-family:ui-monospace,Menlo,monospa
     <label class="switch"><input type="checkbox" id="optWake"><span></span></label></div>
   <div class="row"><label>ขึ้นย่อหน้าใหม่เมื่อเงียบเกิน (วินาที)</label>
     <input id="optGap" type="number" min="2" max="60" style="width:70px"></div>
+
+  <h3>แปลภาษาแบบ real time</h3>
+  <div class="row"><label>เปิดการแปล</label>
+    <label class="switch"><input type="checkbox" id="optTr"><span></span></label></div>
+  <div class="row"><label>แปลเป็น</label>
+    <select id="optTrTarget"><option value="th">ไทย</option><option value="en">English</option></select></div>
+  <div class="row"><label>แปลประโยคที่กำลังพูดด้วย (เร็วขึ้น แต่ใช้โควตามากขึ้น)</label>
+    <label class="switch"><input type="checkbox" id="optTrPreview"><span></span></label></div>
+  <p class="note">อีเมล (ไม่บังคับ) — ใส่แล้วโควตาแปลฟรีเพิ่มจาก 5,000 เป็น 50,000 ตัวอักษร/วัน (ประมาณ 1 ชม. lecture) · เก็บไว้ในเครื่องนี้เท่านั้น และส่งไปกับคำขอแปลที่ MyMemory</p>
+  <input id="optTrEmail" class="wide" type="email" placeholder="you@example.com" autocomplete="email" autocapitalize="off">
+  <p class="note" id="trUsage"></p>
+  <button class="btn" id="trAll">แปล transcript ปัจจุบันที่ยังไม่ได้แปล</button>
+  <p class="note">คำแปลทำโดยบริการแปลอัตโนมัติ MyMemory (ข้อความจะถูกส่งไปแปลบนเซิร์ฟเวอร์ของเขา) — บน Chrome คอมพิวเตอร์จะแปลในเครื่องแทน · คุณภาพพอเข้าใจใจความ ศัพท์แพทย์อาจเพี้ยน ให้ Copy ไปให้ Claude แปล/เรียบเรียงอีกรอบสำหรับโน้ตจริง</p>
 
   <h3>แก้ศัพท์อัตโนมัติ (ศัพท์แพทย์ที่ระบบมักฟังผิด)</h3>
   <p class="note">บรรทัดละ 1 คู่ รูปแบบ <code>คำที่ได้ยินผิด =&gt; คำที่ถูก</code> · ไม่สนตัวพิมพ์เล็ก/ใหญ่ · ขึ้นต้นด้วย # = comment</p>
@@ -246,7 +272,8 @@ const DEFAULT_DICT = [
 ].join("\n");
 
 const settings = Object.assign({
-  lang: "en-US", fs: 19, showTs: true, wake: true, gap: 6, dict: DEFAULT_DICT
+  lang: "en-US", fs: 19, showTs: true, wake: true, gap: 6, dict: DEFAULT_DICT,
+  trOn: true, trTarget: "th", trPreview: false, trEmail: ""
 }, store.get(K_SET, {}));
 const saveSettings = () => store.set(K_SET, settings);
 
@@ -261,6 +288,7 @@ function newSession(){
 }
 function saveSessions(){
   if (cur) cur.updated = Date.now();
+  sessions.forEach(x => x.segs.forEach(sg => { if (sg.trPending && !recording) delete sg.trPending; }));
   // drop empty sessions that aren't current
   sessions = sessions.filter(s => s === cur || s.segs.length || s.title);
   if (!store.set(K_SESS, sessions)) toast("⚠️ บันทึกในเครื่องไม่ได้ (พื้นที่เต็ม/โหมดส่วนตัว) — กรุณา Copy เก็บไว้");
@@ -307,13 +335,20 @@ function segNode(seg, i){
   tx.dataset.i = i;
   tx.contentEditable = recording ? "false" : "true";
   tx.addEventListener("input", () => { const k = +tx.dataset.i; if (cur.segs[k]) { cur.segs[k].text = tx.textContent; scheduleSave(); updateCounts(); } });
-  p.append(ts, tx);
+  const tr = document.createElement("span"); tr.className = "trl"; tr.textContent = seg.tr || "";
+  p.append(ts, tx, tr);
   return p;
+}
+function renderTr(i){
+  const el = segsEl.children[i]; if (!el) return;
+  const tr = el.querySelector(".trl"); if (!tr) return;
+  tr.textContent = (cur.segs[i] && cur.segs[i].tr) || "";
+  tr.classList.toggle("wait", !!(cur.segs[i] && cur.segs[i].trPending));
 }
 function renderAll(){
   segsEl.textContent = "";
   cur.segs.forEach((s, i) => segsEl.appendChild(segNode(s, i)));
-  interimEl.textContent = "";
+  interimEl.textContent = ""; $("interimTr").textContent = "";
   $("title").value = cur.title || "";
   updateEmpty(); updateCounts(); updateTimer();
 }
@@ -337,6 +372,9 @@ function autoscroll(){ if (nearBottom) mainEl.scrollTop = mainEl.scrollHeight; }
 function applyView(){
   document.documentElement.style.setProperty("--fs", settings.fs + "px");
   document.body.classList.toggle("hide-ts", !settings.showTs);
+  document.body.classList.toggle("no-tr", !settings.trOn);
+  const chip = $("trChip"); chip.classList.toggle("on", settings.trOn);
+  chip.textContent = settings.trOn ? "แปล→" + (settings.trTarget === "th" ? "ไทย" : "EN") : "แปล: ปิด";
   $("langSel").value = settings.lang;
 }
 
@@ -348,6 +386,8 @@ function header(){
 }
 const plainOut = () => header() + fullText();
 const tsOut = () => header() + cur.segs.filter(s => s.text.trim()).map(s => "[" + fmt(s.t) + "] " + s.text.trim()).join("\n\n");
+const trOut = () => header() + cur.segs.filter(s => s.text.trim()).map(s => "[" + fmt(s.t) + "] " + s.text.trim() + (s.tr ? "\n→ " + s.tr.trim() : "")).join("\n\n");
+const trOnlyOut = () => header() + cur.segs.filter(s => (s.tr || "").trim()).map(s => "[" + fmt(s.t) + "] " + s.tr.trim()).join("\n\n");
 const claudeOut = () =>
 `นี่คือ transcript ที่ถอดเสียงอัตโนมัติจาก lecture${cur.title ? " เรื่อง \"" + cur.title + "\"" : ""} (อาจมีคำที่ถอดผิด โดยเฉพาะศัพท์แพทย์และตัวย่อ)
 ช่วย:
@@ -357,6 +397,117 @@ const claudeOut = () =>
 
 --- TRANSCRIPT ---
 ${tsOut()}`;
+
+/* ---------- translation ---------- */
+const K_USE = "llt.trusage.v1";
+const srcCode = l => l.startsWith("en") ? "en" : l.startsWith("th") ? "th" : l === "zh-CN" ? "zh-CN" : "zh-TW";
+const activeLang = () => (recording ? cur.lang : settings.lang) || settings.lang;
+const needTr = () => settings.trOn && srcCode(activeLang()).slice(0, 2) !== settings.trTarget;
+let builtin = null, builtinKey = "", trQ = Promise.resolve(), quotaHit = false, netWarned = false;
+
+async function prepTranslator(){
+  const key = activeLang() + ">" + settings.trTarget;
+  if (builtinKey === key) return;
+  builtinKey = key; builtin = null;
+  try {
+    if (!needTr() || !("Translator" in self)) return;
+    const map = { "zh-CN": "zh", "zh-TW": "zh-Hant" };
+    const sl = map[srcCode(activeLang())] || srcCode(activeLang());
+    const av = await Translator.availability({ sourceLanguage: sl, targetLanguage: settings.trTarget });
+    if (av === "unavailable") return;
+    const t = await Translator.create({ sourceLanguage: sl, targetLanguage: settings.trTarget });
+    if (builtinKey === key) builtin = t;
+  } catch(e){ builtin = null; }
+}
+function usage(){
+  const today = new Date().toISOString().slice(0, 10);
+  const u = store.get(K_USE, {});
+  return u.d === today ? u : { d: today, c: 0 };
+}
+function addUsage(n){ const u = usage(); u.c += n; store.set(K_USE, u); }
+function showUsage(){
+  const el = $("trUsage"); if (!el) return;
+  el.textContent = "ใช้ไปวันนี้ประมาณ " + usage().c.toLocaleString() + " / " + (settings.trEmail ? "50,000" : "5,000") + " ตัวอักษร" + (builtin ? " (ตอนนี้ใช้ตัวแปลในเครื่อง ไม่นับโควตา)" : "");
+}
+const decodeEl = document.createElement("textarea");
+function decodeEntities(t){ decodeEl.innerHTML = t; return decodeEl.value; }
+function chunks(text){
+  const enc = new TextEncoder(), max = 450, out = [];
+  const parts = text.match(/[^.!?。！？；;]+[.!?。！？；;]*\s*/g) || [text];
+  let buf = "";
+  const push = x => { if (x.trim()) out.push(x); };
+  for (let p of parts){
+    if (enc.encode(buf + p).length <= max){ buf += p; continue; }
+    push(buf); buf = "";
+    while (enc.encode(p).length > max){
+      let n = p.length;
+      while (enc.encode(p.slice(0, n)).length > max) n = Math.floor(n * 0.8);
+      push(p.slice(0, n)); p = p.slice(n);
+    }
+    buf = p;
+  }
+  push(buf);
+  return out;
+}
+async function mymemory(text){
+  const prm = new URLSearchParams({ q: text, langpair: srcCode(activeLang()) + "|" + settings.trTarget });
+  if (settings.trEmail) prm.set("de", settings.trEmail);
+  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 10000);
+  let d;
+  try { d = await (await fetch("https://api.mymemory.translated.net/get?" + prm, { signal: ctl.signal })).json(); }
+  finally { clearTimeout(to); }
+  const t = (d && d.responseData && d.responseData.translatedText) || "";
+  if (+d.responseStatus === 429 || /MYMEMORY WARNING|QUOTA/i.test(t)) throw new Error("quota");
+  if (+d.responseStatus !== 200) throw new Error(d.responseDetails || "error");
+  addUsage(text.length);
+  return decodeEntities(t);
+}
+async function translate(text){
+  text = text.trim(); if (!text) return "";
+  if (builtin){ try { return await builtin.translate(text); } catch(e){ builtin = null; } }
+  if (quotaHit) throw new Error("quota");
+  const out = [];
+  for (const c of chunks(text)) out.push(await mymemory(c));
+  const cjkT = settings.trTarget === "zh";
+  return out.join(cjkT ? "" : " ").trim();
+}
+function trError(e){
+  if (e && e.message === "quota"){
+    if (!quotaHit){ quotaHit = true;
+      banner("โควตาแปลฟรีวันนี้หมดแล้ว (ถอดเสียงยังทำงานต่อ) — " + (settings.trEmail ? "พรุ่งนี้จะใช้ได้ใหม่ หรือ Copy ไปให้ Claude แปล" : "ใส่อีเมลใน ⚙︎ ตั้งค่า → แปลภาษา เพื่อเพิ่มโควตาเป็น 10 เท่า")); }
+  } else if (!netWarned){ netWarned = true; toast("แปลไม่สำเร็จ (เน็ต?) — จะลองต่อในประโยคถัดไป"); setTimeout(() => netWarned = false, 30000); }
+}
+function queueTr(i, text){
+  if (!needTr()) return;
+  const sess = cur, seg = cur.segs[i];
+  seg.trPending = (seg.trPending || 0) + 1; renderTr(i);
+  trQ = trQ.then(async () => {
+    try {
+      const t = await translate(text);
+      if (t) seg.tr = (seg.tr ? seg.tr.replace(/\s+$/, "") + " " : "") + t;
+    } catch(e){ trError(e); }
+    seg.trPending = Math.max(0, (seg.trPending || 1) - 1);
+    if (!seg.trPending) delete seg.trPending;
+    if (cur === sess) renderTr(sess.segs.indexOf(seg));
+    scheduleSave();
+  });
+}
+let pvTimer = null, pvLast = "", pvAt = 0, pvBusy = false;
+function previewTr(text){
+  const el = $("interimTr");
+  if (!text){ clearTimeout(pvTimer); pvLast = ""; el.textContent = ""; return; }
+  if (!needTr() || !settings.trPreview || quotaHit && !builtin) return;
+  clearTimeout(pvTimer);
+  const wait = builtin ? 500 : Math.max(1200, 3000 - (Date.now() - pvAt));
+  pvTimer = setTimeout(async () => {
+    const src = text.length > 220 ? text.slice(-220) : text;
+    if (pvBusy || src === pvLast || src.length < 12) return;
+    pvBusy = true; pvLast = src; pvAt = Date.now();
+    try { const t = await translate(src); if (interimEl.textContent) el.textContent = (text.length > 220 ? "… " : "") + t; }
+    catch(e){ trError(e); }
+    pvBusy = false;
+  }, wait);
+}
 
 /* ---------- recognition ---------- */
 let recording = false, rec = null, startedAt = 0, lastFinalAt = 0, restartTimes = [], wakeLock = null, tick = null;
@@ -386,6 +537,7 @@ function appendFinal(text){
   }
   lastFinalAt = now;
   renderLastSeg();
+  queueTr(cur.segs.length - 1, text);
   scheduleSave();
 }
 
@@ -408,6 +560,7 @@ function launch(){
     }
     pending = interim;
     interimEl.textContent = interim ? correct(interim) : "";
+    previewTr(interim ? correct(interim) : "");
     updateEmpty(); updateCounts(); autoscroll();
   };
   r.onerror = e => {
@@ -426,7 +579,7 @@ function launch(){
   r.onend = () => {
     // commit whatever was still showing as interim so nothing is lost
     if (pending){ appendFinal(pending); pending = ""; }
-    interimEl.textContent = "";
+    interimEl.textContent = ""; previewTr("");
     if (rec === r) rec = null;
     if (!recording){ finishStop(); return; }
     const now = Date.now();
@@ -457,6 +610,7 @@ function start(){
   banner("");
   recording = true; startedAt = Date.now(); lastFinalAt = 0; restartTimes = [];
   cur.lang = settings.lang;
+  prepTranslator();
   setUI(); wakeOn();
   tick = setInterval(updateTimer, 500);
   launch();
@@ -534,6 +688,7 @@ $("recBtn").onclick = () => recording ? stop() : start();
 $("menuBtn").onclick = () => { renderSessions(); openSheet("sessSheet"); };
 $("exportBtn").onclick = () => openSheet("expSheet");
 $("settingsBtn").onclick = () => {
+  $("optTr").checked = settings.trOn; $("optTrTarget").value = settings.trTarget; $("optTrPreview").checked = settings.trPreview; $("optTrEmail").value = settings.trEmail; showUsage();
   $("optTs").checked = settings.showTs; $("optWake").checked = settings.wake; $("optGap").value = settings.gap; $("dict").value = settings.dict;
   openSheet("setSheet");
 };
@@ -541,6 +696,19 @@ $("copyBtn").onclick = () => copy(claudeOut(), "Copy พร้อม prompt แ�
 $("copyClaudeBtn").onclick = () => { copy(claudeOut(), "Copy พร้อม prompt แล้ว ✓"); closeSheets(); };
 $("copyPlainBtn").onclick = () => { copy(plainOut()); closeSheets(); };
 $("copyTsBtn").onclick = () => { copy(tsOut()); closeSheets(); };
+$("copyTrBtn").onclick = () => { copy(trOut()); closeSheets(); };
+$("copyTrOnlyBtn").onclick = () => { copy(trOnlyOut()); closeSheets(); };
+$("trChip").onclick = () => { settings.trOn = !settings.trOn; saveSettings(); applyView(); builtinKey = ""; if (recording) prepTranslator(); toast(settings.trOn ? "เปิดการแปลแล้ว" : "ปิดการแปลแล้ว"); };
+$("optTr").onchange = e => { settings.trOn = e.target.checked; saveSettings(); applyView(); builtinKey = ""; };
+$("optTrTarget").onchange = e => { settings.trTarget = e.target.value; saveSettings(); applyView(); builtinKey = ""; prepTranslator(); };
+$("optTrPreview").onchange = e => { settings.trPreview = e.target.checked; saveSettings(); };
+$("optTrEmail").onchange = e => { settings.trEmail = e.target.value.trim(); saveSettings(); quotaHit = false; showUsage(); };
+$("trAll").onclick = () => {
+  if (!settings.trOn) return toast("เปิดการแปลก่อน");
+  if (!needTr()) return toast("ภาษาต้นฉบับกับภาษาที่แปลเป็นภาษาเดียวกัน");
+  prepTranslator().then(() => { let n = 0; cur.segs.forEach((sg, i) => { if (!sg.tr && sg.text.trim()){ queueTr(i, sg.text); n++; } }); toast(n ? "กำลังแปล " + n + " ย่อหน้า…" : "แปลครบแล้ว"); });
+  closeSheets();
+};
 $("shareBtn").onclick = async () => {
   if (!fullText().trim()) return toast("ยังไม่มีข้อความ");
   if (navigator.share){ try { await navigator.share({ title: cur.title || "Lecture transcript", text: tsOut() }); } catch(e){} }
@@ -561,7 +729,7 @@ $("newBtn").onclick = () => {
   cur = newSession(); saveSessions(); renderAll(); closeSheets(); $("title").focus();
 };
 $("title").addEventListener("input", () => { cur.title = $("title").value; scheduleSave(); });
-$("langSel").onchange = () => { settings.lang = $("langSel").value; saveSettings(); };
+$("langSel").onchange = () => { settings.lang = $("langSel").value; saveSettings(); builtinKey = ""; };
 $("fsUp").onclick = () => { settings.fs = Math.min(34, settings.fs + 2); saveSettings(); applyView(); };
 $("fsDown").onclick = () => { settings.fs = Math.max(13, settings.fs - 2); saveSettings(); applyView(); };
 $("optTs").onchange = e => { settings.showTs = e.target.checked; saveSettings(); applyView(); };
@@ -594,7 +762,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:"){
 }
 
 // expose for testing
-window.__llt = { get cur(){ return cur; }, correct, fullText, claudeOut };
+window.__llt = { get cur(){ return cur; }, correct, fullText, claudeOut, trOut, chunks };
 })();
 </script>
 </body>

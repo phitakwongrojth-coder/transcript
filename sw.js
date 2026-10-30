@@ -1,5 +1,5 @@
 // Offline cache for Live Transcript: network-first (so updates arrive), cache fallback.
-const CACHE = "llt-v2";
+const CACHE = "llt-v3";
 const ASSETS = ["./", "./index.html"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
