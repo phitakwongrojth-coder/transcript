@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#161616">
+<meta name="apple-mobile-web-app-title" content="Transcript">
+<title>Live Transcript</title>
+<style>
+:root{
+  --bg:#161616; --panel:#1f1f1f; --panel2:#2a2a2a; --line:#333;
+  --text:#ece8e1; --muted:#9a958c; --accent:#d97757; --accent2:#e8916f;
+  --ok:#5fb37c; --warn:#e0b450; --err:#e0605a;
+  --fs:19px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Thai",Roboto,sans-serif}
+body{display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px}
+
+header{padding:calc(var(--safe-t) + 10px) 14px 8px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+.iconbtn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--panel);flex:none}
+.iconbtn svg{width:20px;height:20px;stroke:var(--text);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#title{flex:1;min-width:0;background:transparent;border:0;font-size:17px;font-weight:600;padding:6px 4px}
+#title:focus{outline:none;background:var(--panel)}
+
+.statusbar{display:flex;align-items:center;gap:10px;padding:8px 14px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.dot{width:9px;height:9px;border-radius:50%;background:#555;display:inline-block;margin-right:5px;vertical-align:middle}
+.rec .dot{background:var(--err);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.3}}
+#langSel{padding:5px 8px;font-size:13px;border-radius:8px}
+.spacer{flex:1}
+
+main{flex:1;overflow-y:auto;padding:6px 16px 140px;-webkit-overflow-scrolling:touch}
+.empty{color:var(--muted);text-align:center;margin-top:18vh;line-height:1.6;font-size:15px}
+.empty b{color:var(--text)}
+.seg{margin:0 0 14px;font-size:var(--fs);line-height:1.5;word-wrap:break-word}
+.seg .ts{display:block;font-size:12px;color:var(--muted);margin-bottom:2px;font-variant-numeric:tabular-nums;user-select:none}
+.seg .tx{outline:none;border-radius:6px}
+.seg .tx[contenteditable="true"]:focus{background:var(--panel)}
+.hide-ts .seg .ts{display:none}
+#interim{color:var(--muted);font-size:var(--fs);line-height:1.5}
+
+.bottombar{position:fixed;left:0;right:0;bottom:0;padding:12px 18px calc(var(--safe-b) + 14px);
+  background:linear-gradient(transparent,var(--bg) 30%);display:flex;align-items:center;justify-content:space-between}
+.side{width:64px;height:52px;border-radius:16px;background:var(--panel);display:grid;place-items:center;font-size:12px;color:var(--muted)}
+.side svg{width:22px;height:22px;stroke:var(--text);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#recBtn{width:76px;height:76px;border-radius:50%;background:var(--accent);display:grid;place-items:center;box-shadow:0 4px 20px rgba(217,119,87,.35);transition:transform .1s}
+#recBtn:active{transform:scale(.95)}
+#recBtn .ic{width:26px;height:26px;border-radius:50%;background:#fff}
+.rec #recBtn{background:var(--err)}
+.rec #recBtn .ic{border-radius:6px;width:24px;height:24px}
+
+/* sheets */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
+.backdrop.show{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:85vh;overflow-y:auto;background:var(--panel);border-radius:20px 20px 0 0;
+  padding:8px 18px calc(var(--safe-b) + 20px);transform:translateY(105%);transition:transform .25s;z-index:11}
+.sheet.show{transform:none}
+.grab{width:40px;height:5px;border-radius:3px;background:#555;margin:4px auto 12px}
+.sheet h2{font-size:18px;margin:4px 0 14px}
+.sheet h3{font-size:14px;color:var(--muted);margin:18px 0 8px;font-weight:600}
+.row{display:flex;align-items:center;gap:10px;margin:10px 0}
+.row label{flex:1}
+.btn{display:block;width:100%;text-align:left;padding:14px;border-radius:12px;background:var(--panel2);margin:8px 0;font-size:15px}
+.btn small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.btn.primary{background:var(--accent);color:#fff;text-align:center;font-weight:600}
+.btn.danger{color:var(--err)}
+textarea#dict{width:100%;min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.5}
+.sess{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;background:var(--panel2);margin:8px 0}
+.sess.cur{outline:2px solid var(--accent)}
+.sess .meta{flex:1;min-width:0}
+.sess .meta b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess .meta span{font-size:12px;color:var(--muted)}
+.sess button{color:var(--muted);padding:6px 8px}
+.help{font-size:14px;line-height:1.6;color:#d6d1c8}
+.help ol{padding-left:20px;margin:6px 0}
+.help li{margin:4px 0}
+.note{font-size:12px;color:var(--muted);line-height:1.5}
+.switch{position:relative;width:48px;height:28px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;background:#444;border-radius:20px;transition:.2s}
+.switch span:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked+span{background:var(--ok)}
+.switch input:checked+span:before{transform:translateX(20px)}
+.fsbtn{width:44px;height:40px;border-radius:10px;background:var(--panel2)}
+
+#toast{position:fixed;left:50%;top:calc(var(--safe-t) + 14px);transform:translate(-50%,-80px);background:#333;color:#fff;padding:10px 16px;border-radius:12px;
+  font-size:14px;z-index:20;transition:transform .25s;max-width:90vw;text-align:center}
+#toast.show{transform:translate(-50%,0)}
+#banner{display:none;margin:10px 14px 0;padding:12px;border-radius:12px;background:#3a2422;color:#f3c7c2;font-size:14px;line-height:1.5}
+#banner.show{display:block}
+</style>
+</head>
+<body>
+<header>
+  <button class="iconbtn" id="menuBtn" aria-label="Sessions">
+    <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+  </button>
+  <input id="title" placeholder="ชื่อ lecture" autocomplete="off">
+  <button class="iconbtn" id="settingsBtn" aria-label="Settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button>
+</header>
+
+<div class="statusbar" id="statusbar">
+  <span><span class="dot"></span><span id="stateTxt">พร้อม</span></span>
+  <span id="timer">00:00</span>
+  <span id="wc">0 คำ</span>
+  <span class="spacer"></span>
+  <select id="langSel" aria-label="Language">
+    <option value="en-US">English (US)</option>
+    <option value="en-GB">English (UK)</option>
+    <option value="th-TH">ไทย</option>
+  </select>
+</div>
+<div id="banner"></div>
+
+<main id="main">
+  <div id="segs"></div>
+  <div id="interim"></div>
+  <div class="empty" id="empty">
+    กดปุ่ม <b>●</b> ด้านล่างเพื่อเริ่มถอดเสียง<br>
+    ข้อความจะขึ้นแบบ real time<br>
+    <span class="note">หยุดแล้วแตะที่ข้อความเพื่อแก้ไขได้</span>
+  </div>
+</main>
+
+<div class="bottombar">
+  <button class="side" id="copyBtn" aria-label="Copy">
+    <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+  </button>
+  <button id="recBtn" aria-label="Record"><span class="ic"></span></button>
+  <button class="side" id="exportBtn" aria-label="Export">
+    <svg viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+  </button>
+</div>
+
+<div class="backdrop" id="backdrop"></div>
+
+<!-- Sessions sheet -->
+<div class="sheet" id="sessSheet">
+  <div class="grab"></div>
+  <h2>Lectures ที่บันทึกไว้</h2>
+  <button class="btn primary" id="newBtn">+ เริ่ม lecture ใหม่</button>
+  <div id="sessList"></div>
+  <p class="note">ข้อมูลเก็บไว้ในเบราว์เซอร์ของเครื่องนี้เท่านั้น — อย่าลืม Copy / Export lecture สำคัญเก็บไว้</p>
+</div>
+
+<!-- Export sheet -->
+<div class="sheet" id="expSheet">
+  <div class="grab"></div>
+  <h2>ส่งออก transcript</h2>
+  <button class="btn" id="copyClaudeBtn">📋 Copy พร้อม prompt สำหรับ Claude<small>แปะในแชทได้เลย — ให้ช่วยเกลาศัพท์แพทย์ จัดเป็นโน้ต และใส่ reference</small></button>
+  <button class="btn" id="copyPlainBtn">📄 Copy ข้อความล้วน</button>
+  <button class="btn" id="copyTsBtn">⏱ Copy พร้อม timestamp</button>
+  <button class="btn" id="shareBtn">↗︎ Share (Notes, LINE, Mail…)</button>
+  <button class="btn" id="dlBtn">⬇︎ Download ไฟล์ .txt</button>
+</div>
+
+<!-- Settings sheet -->
+<div class="sheet" id="setSheet">
+  <div class="grab"></div>
+  <h2>ตั้งค่า</h2>
+  <div class="row"><label>ขนาดตัวอักษร</label>
+    <button class="fsbtn" id="fsDown">A−</button><button class="fsbtn" id="fsUp">A+</button></div>
+  <div class="row"><label>แสดง timestamp</label>
+    <label class="switch"><input type="checkbox" id="optTs"><span></span></label></div>
+  <div class="row"><label>เปิดหน้าจอค้างไว้ระหว่างอัด</label>
+    <label class="switch"><input type="checkbox" id="optWake"><span></span></label></div>
+  <div class="row"><label>ขึ้นย่อหน้าใหม่เมื่อเงียบเกิน (วินาที)</label>
+    <input id="optGap" type="number" min="2" max="60" style="width:70px"></div>
+
+  <h3>แก้ศัพท์อัตโนมัติ (ศัพท์แพทย์ที่ระบบมักฟังผิด)</h3>
+  <p class="note">บรรทัดละ 1 คู่ รูปแบบ <code>คำที่ได้ยินผิด =&gt; คำที่ถูก</code> · ไม่สนตัวพิมพ์เล็ก/ใหญ่ · ขึ้นต้นด้วย # = comment</p>
+  <textarea id="dict" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+  <button class="btn" id="dictReset">คืนค่า list เริ่มต้น</button>
+  <button class="btn" id="dictApply">ใช้ list นี้แก้ transcript ปัจจุบันทั้งหมด</button>
+
+  <h3>วิธีใช้ / แก้ปัญหา</h3>
+  <div class="help">
+    <ol>
+      <li>iPhone: เปิดหน้านี้ใน <b>Safari</b> แล้วกด <b>Allow</b> ไมโครโฟน</li>
+      <li>ต้องเปิด <b>Dictation</b>: Settings → General → Keyboard → Enable Dictation</li>
+      <li>ถ้าไมค์ถูกบล็อก: Settings → Apps → Safari → Microphone → Allow (หรือแตะ "aA" บนแถบที่อยู่ → Website Settings)</li>
+      <li>อย่าล็อกหน้าจอหรือสลับแอประหว่างอัด — iOS จะหยุดฟัง (แอปพยายามต่อให้อัตโนมัติเมื่อกลับมา)</li>
+      <li>ระบบหยุดฟังเองเป็นระยะ แอปจะเริ่มฟังใหม่อัตโนมัติ อาจหลุดคำ 1–2 คำตรงรอยต่อ</li>
+      <li>วางโทรศัพท์ใกล้ผู้บรรยาย/ลำโพง จะแม่นขึ้นมาก</li>
+    </ol>
+  </div>
+  <button class="btn danger" id="clearAll">ลบ lecture ทั้งหมดในเครื่องนี้</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+/* ---------- storage (wrapped: may be unavailable) ---------- */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+};
+const K_SESS = "llt.sessions.v1", K_SET = "llt.settings.v1", K_CUR = "llt.current.v1";
+
+const DEFAULT_DICT = [
+  "# ตัวย่อที่ถูกสะกดแยกตัว",
+  "S T A => STA",
+  "S T V => STV",
+  "A L T => ALT",
+  "S C C => SCC",
+  "B C C => BCC",
+  "T R A M => TRAM",
+  "S I E A => SIEA",
+  "V S P => VSP",
+  "C T A => CTA",
+  "# คำที่มักฟังผิด",
+  "Dieppe => DIEP",
+  "deep flap => DIEP flap",
+  "tram flap => TRAM flap",
+  "free flat => free flap",
+  "local flat => local flap",
+  "lat dorsi => latissimus dorsi",
+  "anterior lateral thigh => anterolateral thigh",
+  "perforated flap => perforator flap",
+  "galia => galea",
+  "gallia => galea",
+  "split thickness skin graph => split-thickness skin graft",
+  "full thickness skin graph => full-thickness skin graft",
+  "skin graph => skin graft",
+  "vein graph => vein graft",
+  "bone graph => bone graft",
+  "micro vascular => microvascular"
+].join("\n");
+
+const settings = Object.assign({
+  lang: "en-US", fs: 19, showTs: true, wake: true, gap: 6, dict: DEFAULT_DICT
+}, store.get(K_SET, {}));
+const saveSettings = () => store.set(K_SET, settings);
+
+let sessions = store.get(K_SESS, []);
+let cur = null;
+
+function newSession(){
+  const s = { id: Date.now().toString(36), title: "", created: Date.now(), updated: Date.now(),
+              lang: settings.lang, elapsed: 0, segs: [] };
+  sessions.unshift(s);
+  return s;
+}
+function saveSessions(){
+  if (cur) cur.updated = Date.now();
+  // drop empty sessions that aren't current
+  sessions = sessions.filter(s => s === cur || s.segs.length || s.title);
+  if (!store.set(K_SESS, sessions)) toast("⚠️ บันทึกในเครื่องไม่ได้ (พื้นที่เต็ม/โหมดส่วนตัว) — กรุณา Copy เก็บไว้");
+  if (cur) store.set(K_CUR, cur.id);
+}
+
+/* ---------- dictionary ---------- */
+let dictRules = [];
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function buildDict(){
+  dictRules = [];
+  settings.dict.split("\n").forEach(line => {
+    line = line.trim();
+    if (!line || line.startsWith("#")) return;
+    const m = line.split("=>");
+    if (m.length !== 2) return;
+    const wrong = m[0].trim(), right = m[1].trim();
+    if (!wrong) return;
+    // flexible whitespace/dots between letters: "S T A" also matches "s.t.a." / "S-T-A"
+    const pat = wrong.split(/\s+/).map(esc).join("[\\s.\\-]*");
+    const hasThai = /[฀-๿]/.test(wrong);
+    const re = hasThai
+      ? new RegExp(pat, "giu")
+      : new RegExp("(^|[^\\p{L}\\p{N}])(" + pat + ")(?=$|[^\\p{L}\\p{N}])", "giu");
+    dictRules.push({ re, right, hasThai });
+  });
+}
+function correct(t){
+  for (const r of dictRules){
+    t = r.hasThai ? t.replace(r.re, r.right) : t.replace(r.re, (m, pre) => pre + r.right);
+  }
+  return t;
+}
+
+/* ---------- rendering ---------- */
+const segsEl = $("segs"), interimEl = $("interim"), mainEl = $("main");
+const fmt = ms => { const s = Math.floor(ms/1000), h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  return (h ? h + ":" + String(m).padStart(2,"0") : String(m).padStart(2,"0")) + ":" + String(x).padStart(2,"0"); };
+
+function segNode(seg, i){
+  const p = document.createElement("p"); p.className = "seg";
+  const ts = document.createElement("span"); ts.className = "ts"; ts.textContent = fmt(seg.t);
+  const tx = document.createElement("span"); tx.className = "tx"; tx.textContent = seg.text;
+  tx.dataset.i = i;
+  tx.contentEditable = recording ? "false" : "true";
+  tx.addEventListener("input", () => { const k = +tx.dataset.i; if (cur.segs[k]) { cur.segs[k].text = tx.textContent; scheduleSave(); updateCounts(); } });
+  p.append(ts, tx);
+  return p;
+}
+function renderAll(){
+  segsEl.textContent = "";
+  cur.segs.forEach((s, i) => segsEl.appendChild(segNode(s, i)));
+  interimEl.textContent = "";
+  $("title").value = cur.title || "";
+  updateEmpty(); updateCounts(); updateTimer();
+}
+function renderLastSeg(){
+  const i = cur.segs.length - 1;
+  const last = segsEl.lastElementChild;
+  if (last && +last.querySelector(".tx").dataset.i === i) last.querySelector(".tx").textContent = cur.segs[i].text;
+  else segsEl.appendChild(segNode(cur.segs[i], i));
+}
+function updateEmpty(){ $("empty").style.display = (cur.segs.length || interimEl.textContent) ? "none" : "block"; }
+function countWords(t){
+  const th = (t.match(/[฀-๿]+/g) || []).join("").length;     // Thai: approx by chars
+  const en = (t.replace(/[฀-๿]+/g, " ").match(/\S+/g) || []).length;
+  return en + Math.round(th / 5);
+}
+function updateCounts(){ $("wc").textContent = countWords(fullText() + " " + interimEl.textContent).toLocaleString() + " คำ"; }
+let nearBottom = true;
+mainEl.addEventListener("scroll", () => { nearBottom = mainEl.scrollHeight - mainEl.scrollTop - mainEl.clientHeight < 120; });
+function autoscroll(){ if (nearBottom) mainEl.scrollTop = mainEl.scrollHeight; }
+function applyView(){
+  document.documentElement.style.setProperty("--fs", settings.fs + "px");
+  document.body.classList.toggle("hide-ts", !settings.showTs);
+  $("langSel").value = settings.lang;
+}
+
+/* ---------- text output ---------- */
+const fullText = () => cur.segs.map(s => s.text.trim()).filter(Boolean).join("\n\n");
+function header(){
+  const d = new Date(cur.created);
+  return (cur.title || "Lecture") + "\n" + d.toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }) + "\n\n";
+}
+const plainOut = () => header() + fullText();
+const tsOut = () => header() + cur.segs.filter(s => s.text.trim()).map(s => "[" + fmt(s.t) + "] " + s.text.trim()).join("\n\n");
+const claudeOut = () =>
+`นี่คือ transcript ที่ถอดเสียงอัตโนมัติจาก lecture${cur.title ? " เรื่อง \"" + cur.title + "\"" : ""} (อาจมีคำที่ถอดผิด โดยเฉพาะศัพท์แพทย์และตัวย่อ)
+ช่วย:
+1) แก้คำที่ถอดผิดให้เป็นศัพท์ที่ถูกต้อง
+2) เรียบเรียงเป็นโน้ตแบบหัวข้อ เน้น key points, pearls และ decision-making ของอาจารย์
+3) เสริมข้อมูลจาก textbook ใน Drive และ paper ที่ใหม่กว่า พร้อมใส่ reference ท้ายโน้ต
+
+--- TRANSCRIPT ---
+${tsOut()}`;
+
+/* ---------- recognition ---------- */
+let recording = false, rec = null, startedAt = 0, lastFinalAt = 0, restartTimes = [], wakeLock = null, tick = null;
+
+function setUI(){
+  document.body.classList.toggle("rec", recording);
+  $("stateTxt").textContent = recording ? "กำลังฟัง…" : "พร้อม";
+  $("langSel").disabled = recording;
+  segsEl.querySelectorAll(".tx").forEach(t => t.contentEditable = recording ? "false" : "true");
+}
+function banner(html){ const b = $("banner"); b.innerHTML = html || ""; b.classList.toggle("show", !!html); }
+
+function elapsedNow(){ return cur.elapsed + (recording ? Date.now() - startedAt : 0); }
+function updateTimer(){ $("timer").textContent = fmt(elapsedNow()); }
+
+function appendFinal(text){
+  text = correct(text.trim());
+  if (!text) return;
+  const now = Date.now();
+  const last = cur.segs[cur.segs.length - 1];
+  const gapOK = last && lastFinalAt && (now - lastFinalAt) < settings.gap * 1000 && last.text.length < 900;
+  if (gapOK){
+    last.text = last.text.replace(/\s+$/, "") + " " + text;
+  } else {
+    cur.segs.push({ t: Math.max(0, elapsedNow() - 2000), text });
+  }
+  lastFinalAt = now;
+  renderLastSeg();
+  scheduleSave();
+}
+
+function launch(){
+  if (!recording) return;
+  const r = new SR();
+  rec = r;
+  r.lang = settings.lang;
+  r.continuous = true;
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+  const done = new Set();          // result indexes already committed
+  let pending = "";                // non-final text currently shown
+  r.onresult = e => {
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++){
+      const res = e.results[i], t = res[0].transcript;
+      if (res.isFinal){ if (!done.has(i)){ done.add(i); appendFinal(t); } }
+      else interim += t;
+    }
+    pending = interim;
+    interimEl.textContent = interim ? correct(interim) : "";
+    updateEmpty(); updateCounts(); autoscroll();
+  };
+  r.onerror = e => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed"){
+      recording = false;
+      banner("🎙 เข้าถึงไมโครโฟนไม่ได้ — กด Allow ไมโครโฟน และเปิด Dictation (Settings → General → Keyboard → Enable Dictation) แล้วลองใหม่ · ถ้าเปิดผ่านแอปอื่น ให้เปิดใน Safari/Chrome โดยตรง");
+    } else if (e.error === "network"){
+      toast("สัญญาณเน็ตมีปัญหา — กำลังลองใหม่…");
+    } else if (e.error === "audio-capture"){
+      toast("ไม่พบไมโครโฟน หรือแอปอื่นใช้อยู่");
+    } else if (e.error === "language-not-supported"){
+      recording = false;
+      banner("ภาษา " + settings.lang + " ไม่รองรับในเบราว์เซอร์นี้ — ลองเลือกภาษาอื่น");
+    }
+  };
+  r.onend = () => {
+    // commit whatever was still showing as interim so nothing is lost
+    if (pending){ appendFinal(pending); pending = ""; }
+    interimEl.textContent = "";
+    if (rec === r) rec = null;
+    if (!recording){ finishStop(); return; }
+    const now = Date.now();
+    restartTimes = restartTimes.filter(t => now - t < 10000);
+    restartTimes.push(now);
+    if (restartTimes.length > 8){
+      recording = false;
+      banner("ระบบถอดเสียงหยุดซ้ำ ๆ — ตรวจสิทธิ์ไมโครโฟน/อินเทอร์เน็ต แล้วกดเริ่มใหม่");
+      finishStop(); return;
+    }
+    if (document.visibilityState === "visible") setTimeout(launch, 200);
+  };
+  try { r.start(); }
+  catch(err){ setTimeout(() => { if (recording && !rec) launch(); }, 500); }
+}
+
+async function wakeOn(){
+  if (!settings.wake || !("wakeLock" in navigator)) return;
+  try { wakeLock = await navigator.wakeLock.request("screen"); } catch(e){}
+}
+function wakeOff(){ try { wakeLock && wakeLock.release(); } catch(e){} wakeLock = null; }
+
+function start(){
+  if (!SR){
+    banner("เบราว์เซอร์นี้ไม่รองรับการถอดเสียง — บน iPhone ให้ใช้ <b>Safari</b> · บน Android/คอมพิวเตอร์ให้ใช้ <b>Chrome</b> หรือ Edge");
+    return;
+  }
+  banner("");
+  recording = true; startedAt = Date.now(); lastFinalAt = 0; restartTimes = [];
+  cur.lang = settings.lang;
+  setUI(); wakeOn();
+  tick = setInterval(updateTimer, 500);
+  launch();
+}
+function stop(){
+  recording = false;
+  setUI();
+  if (rec){ try { rec.stop(); } catch(e){ finishStop(); } setTimeout(() => { if (rec){ try{rec.abort();}catch(e){} rec = null; finishStop(); } }, 2500); }
+  else finishStop();
+}
+function finishStop(){
+  if (startedAt){ cur.elapsed += Date.now() - startedAt; startedAt = 0; }
+  clearInterval(tick); tick = null;
+  wakeOff(); setUI(); updateTimer(); updateEmpty(); saveSessions();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && recording){
+    wakeOn();
+    if (!rec){ toast("กลับมาฟังต่อแล้ว"); launch(); }
+  } else if (document.visibilityState === "hidden"){
+    saveSessions();
+  }
+});
+window.addEventListener("pagehide", saveSessions);
+
+/* ---------- saving ---------- */
+let saveT = null;
+function scheduleSave(){ clearTimeout(saveT); saveT = setTimeout(saveSessions, 1500); }
+
+/* ---------- clipboard / export ---------- */
+async function copy(text, msg){
+  if (!fullText().trim()){ toast("ยังไม่มีข้อความ"); return; }
+  try { await navigator.clipboard.writeText(text); toast(msg || "Copy แล้ว ✓"); return; } catch(e){}
+  const ta = document.createElement("textarea"); ta.value = text; ta.setAttribute("readonly", "");
+  ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta);
+  ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false; try { ok = document.execCommand("copy"); } catch(e){}
+  ta.remove();
+  toast(ok ? (msg || "Copy แล้ว ✓") : "Copy ไม่สำเร็จ — กดค้างที่ข้อความเพื่อเลือกเอง");
+}
+function fileName(){ return ((cur.title || "lecture").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60)) + "_" + new Date(cur.created).toISOString().slice(0,10) + ".txt"; }
+
+/* ---------- sheets ---------- */
+const sheets = ["sessSheet", "expSheet", "setSheet"];
+function openSheet(id){ sheets.forEach(s => $(s).classList.toggle("show", s === id)); $("backdrop").classList.add("show"); }
+function closeSheets(){ sheets.forEach(s => $(s).classList.remove("show")); $("backdrop").classList.remove("show"); }
+$("backdrop").onclick = closeSheets;
+
+function renderSessions(){
+  const list = $("sessList"); list.textContent = "";
+  if (!sessions.length){ list.innerHTML = '<p class="note">ยังไม่มี lecture</p>'; return; }
+  sessions.forEach(s => {
+    const d = document.createElement("div"); d.className = "sess" + (s === cur ? " cur" : "");
+    const meta = document.createElement("div"); meta.className = "meta";
+    const b = document.createElement("b"); b.textContent = s.title || "(ไม่มีชื่อ)";
+    const sp = document.createElement("span");
+    const words = countWords(s.segs.map(x => x.text).join(" "));
+    sp.textContent = new Date(s.created).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }) + " · " + fmt(s.elapsed || 0) + " · " + words + " คำ";
+    meta.append(b, sp);
+    const del = document.createElement("button"); del.textContent = "ลบ";
+    del.onclick = ev => {
+      ev.stopPropagation();
+      if (del.dataset.armed){ sessions = sessions.filter(x => x !== s); if (s === cur){ cur = sessions[0] || newSession(); renderAll(); } saveSessions(); renderSessions(); }
+      else { del.dataset.armed = "1"; del.textContent = "ยืนยันลบ"; del.style.color = "var(--err)"; }
+    };
+    d.append(meta, del);
+    d.onclick = () => { if (recording){ toast("หยุดอัดก่อนสลับ lecture"); return; } cur = s; saveSessions(); renderAll(); closeSheets(); };
+    list.appendChild(d);
+  });
+}
+
+/* ---------- wire up ---------- */
+$("recBtn").onclick = () => recording ? stop() : start();
+$("menuBtn").onclick = () => { renderSessions(); openSheet("sessSheet"); };
+$("exportBtn").onclick = () => openSheet("expSheet");
+$("settingsBtn").onclick = () => {
+  $("optTs").checked = settings.showTs; $("optWake").checked = settings.wake; $("optGap").value = settings.gap; $("dict").value = settings.dict;
+  openSheet("setSheet");
+};
+$("copyBtn").onclick = () => copy(claudeOut(), "Copy พร้อม prompt แล้ว — ไปแปะในแชท Claude ได้เลย");
+$("copyClaudeBtn").onclick = () => { copy(claudeOut(), "Copy พร้อม prompt แล้ว ✓"); closeSheets(); };
+$("copyPlainBtn").onclick = () => { copy(plainOut()); closeSheets(); };
+$("copyTsBtn").onclick = () => { copy(tsOut()); closeSheets(); };
+$("shareBtn").onclick = async () => {
+  if (!fullText().trim()) return toast("ยังไม่มีข้อความ");
+  if (navigator.share){ try { await navigator.share({ title: cur.title || "Lecture transcript", text: tsOut() }); } catch(e){} }
+  else toast("เครื่องนี้ไม่รองรับ Share — ใช้ Copy แทน");
+  closeSheets();
+};
+$("dlBtn").onclick = () => {
+  if (!fullText().trim()) return toast("ยังไม่มีข้อความ");
+  try {
+    const url = URL.createObjectURL(new Blob([tsOut()], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = fileName(); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch(e){ toast("Download ไม่ได้ — ใช้ Copy แทน"); }
+  closeSheets();
+};
+$("newBtn").onclick = () => {
+  if (recording){ toast("หยุดอัดก่อนเริ่ม lecture ใหม่"); return; }
+  cur = newSession(); saveSessions(); renderAll(); closeSheets(); $("title").focus();
+};
+$("title").addEventListener("input", () => { cur.title = $("title").value; scheduleSave(); });
+$("langSel").onchange = () => { settings.lang = $("langSel").value; saveSettings(); };
+$("fsUp").onclick = () => { settings.fs = Math.min(34, settings.fs + 2); saveSettings(); applyView(); };
+$("fsDown").onclick = () => { settings.fs = Math.max(13, settings.fs - 2); saveSettings(); applyView(); };
+$("optTs").onchange = e => { settings.showTs = e.target.checked; saveSettings(); applyView(); };
+$("optWake").onchange = e => { settings.wake = e.target.checked; saveSettings(); };
+$("optGap").onchange = e => { settings.gap = Math.min(60, Math.max(2, +e.target.value || 6)); e.target.value = settings.gap; saveSettings(); };
+$("dict").addEventListener("input", e => { settings.dict = e.target.value; saveSettings(); buildDict(); });
+$("dictReset").onclick = () => { settings.dict = DEFAULT_DICT; $("dict").value = DEFAULT_DICT; saveSettings(); buildDict(); toast("คืนค่าแล้ว"); };
+$("dictApply").onclick = () => { cur.segs.forEach(s => s.text = correct(s.text)); renderAll(); saveSessions(); toast("แก้ศัพท์ทั้ง transcript แล้ว ✓"); };
+$("clearAll").onclick = e => {
+  const b = e.currentTarget;
+  if (recording) return toast("หยุดอัดก่อน");
+  if (!b.dataset.armed){ b.dataset.armed = "1"; b.textContent = "แตะอีกครั้งเพื่อยืนยันลบทั้งหมด"; return; }
+  sessions = []; cur = newSession(); saveSessions(); renderAll(); b.dataset.armed = ""; b.textContent = "ลบ lecture ทั้งหมดในเครื่องนี้"; closeSheets(); toast("ลบแล้ว");
+};
+
+let toastT = null;
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2600); }
+
+/* ---------- init ---------- */
+buildDict(); applyView();
+const curId = store.get(K_CUR, null);
+cur = sessions.find(s => s.id === curId) || sessions[0] || newSession();
+renderAll();
+if (!SR) banner("เบราว์เซอร์นี้ไม่รองรับการถอดเสียง — บน iPhone ให้ใช้ <b>Safari</b> · บน Android/คอมพิวเตอร์ให้ใช้ <b>Chrome</b> หรือ Edge");
+else if (!window.isSecureContext) banner("ต้องเปิดผ่านลิงก์ <b>https://</b> ถึงจะใช้ไมโครโฟนได้");
+
+// expose for testing
+window.__llt = { get cur(){ return cur; }, correct, fullText, claudeOut };
+})();
+</script>
+</body>
+</html>
