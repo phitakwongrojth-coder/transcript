@@ -116,6 +116,9 @@ textarea#dict{width:100%;min-height:180px;font-family:ui-monospace,Menlo,monospa
     <option value="en-US">English (US)</option>
     <option value="en-GB">English (UK)</option>
     <option value="th-TH">ไทย</option>
+    <option value="zh-CN">中文 普通话 (简体)</option>
+    <option value="zh-TW">中文 國語 (繁體)</option>
+    <option value="zh-HK">粵語 廣東話</option>
   </select>
 </div>
 <div id="banner"></div>
@@ -190,6 +193,8 @@ textarea#dict{width:100%;min-height:180px;font-family:ui-monospace,Menlo,monospa
       <li>อย่าล็อกหน้าจอหรือสลับแอประหว่างอัด — iOS จะหยุดฟัง (แอปพยายามต่อให้อัตโนมัติเมื่อกลับมา)</li>
       <li>ระบบหยุดฟังเองเป็นระยะ แอปจะเริ่มฟังใหม่อัตโนมัติ อาจหลุดคำ 1–2 คำตรงรอยต่อ</li>
       <li>วางโทรศัพท์ใกล้ผู้บรรยาย/ลำโพง จะแม่นขึ้นมาก</li>
+      <li>ภาษาจีน: ถ้าเลือกแล้วไม่ถอดเสียง ให้เพิ่มคีย์บอร์ดจีนที่ Settings → General → Keyboard → Keyboards → Add New Keyboard → Chinese (Simplified) แล้วลองใหม่</li>
+      <li>แอปเปิดได้แม้ไม่มีเน็ต หลังจากเคยเปิดครั้งแรกแล้ว (แต่การถอดเสียงอาจยังต้องใช้เน็ต)</li>
     </ol>
   </div>
   <button class="btn danger" id="clearAll">ลบ lecture ทั้งหมดในเครื่องนี้</button>
@@ -276,7 +281,7 @@ function buildDict(){
     if (!wrong) return;
     // flexible whitespace/dots between letters: "S T A" also matches "s.t.a." / "S-T-A"
     const pat = wrong.split(/\s+/).map(esc).join("[\\s.\\-]*");
-    const hasThai = /[฀-๿]/.test(wrong);
+    const hasThai = /[฀-๿㐀-鿿豈-﫿]/.test(wrong);
     const re = hasThai
       ? new RegExp(pat, "giu")
       : new RegExp("(^|[^\\p{L}\\p{N}])(" + pat + ")(?=$|[^\\p{L}\\p{N}])", "giu");
@@ -321,8 +326,9 @@ function renderLastSeg(){
 function updateEmpty(){ $("empty").style.display = (cur.segs.length || interimEl.textContent) ? "none" : "block"; }
 function countWords(t){
   const th = (t.match(/[฀-๿]+/g) || []).join("").length;     // Thai: approx by chars
-  const en = (t.replace(/[฀-๿]+/g, " ").match(/\S+/g) || []).length;
-  return en + Math.round(th / 5);
+  const zh = (t.match(/[㐀-鿿豈-﫿]/g) || []).length;  // Chinese: ~1.5 chars/word
+  const en = (t.replace(/[฀-๿㐀-鿿豈-﫿　-〿＀-￯]+/g, " ").match(/\S+/g) || []).length;
+  return en + Math.round(th / 5) + Math.round(zh / 1.5);
 }
 function updateCounts(){ $("wc").textContent = countWords(fullText() + " " + interimEl.textContent).toLocaleString() + " คำ"; }
 let nearBottom = true;
@@ -347,7 +353,7 @@ const claudeOut = () =>
 ช่วย:
 1) แก้คำที่ถอดผิดให้เป็นศัพท์ที่ถูกต้อง
 2) เรียบเรียงเป็นโน้ตแบบหัวข้อ เน้น key points, pearls และ decision-making ของอาจารย์
-3) เสริมข้อมูลจาก textbook ใน Drive และ paper ที่ใหม่กว่า พร้อมใส่ reference ท้ายโน้ต
+3) เสริมข้อมูลจาก textbook ใน Drive และ paper ที่ใหม่กว่า พร้อมใส่ reference ท้ายโน้ต${/^zh/.test(cur.lang || "") ? "\n4) lecture นี้เป็นภาษาจีน — แปลเป็นภาษาอังกฤษ (ศัพท์แพทย์ใส่คำจีนกำกับในวงเล็บ)" : ""}
 
 --- TRANSCRIPT ---
 ${tsOut()}`;
@@ -373,7 +379,8 @@ function appendFinal(text){
   const last = cur.segs[cur.segs.length - 1];
   const gapOK = last && lastFinalAt && (now - lastFinalAt) < settings.gap * 1000 && last.text.length < 900;
   if (gapOK){
-    last.text = last.text.replace(/\s+$/, "") + " " + text;
+    const cjk = /[㐀-鿿　-〿＀-￯]/;
+    last.text = last.text.replace(/\s+$/, "") + (cjk.test(last.text.slice(-1)) && cjk.test(text[0]) ? "" : " ") + text;
   } else {
     cur.segs.push({ t: Math.max(0, elapsedNow() - 2000), text });
   }
@@ -580,6 +587,11 @@ cur = sessions.find(s => s.id === curId) || sessions[0] || newSession();
 renderAll();
 if (!SR) banner("เบราว์เซอร์นี้ไม่รองรับการถอดเสียง — บน iPhone ให้ใช้ <b>Safari</b> · บน Android/คอมพิวเตอร์ให้ใช้ <b>Chrome</b> หรือ Edge");
 else if (!window.isSecureContext) banner("ต้องเปิดผ่านลิงก์ <b>https://</b> ถึงจะใช้ไมโครโฟนได้");
+
+// offline support: after one visit, the app opens even without internet / when GitHub is unreachable
+if ("serviceWorker" in navigator && location.protocol === "https:"){
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
 
 // expose for testing
 window.__llt = { get cur(){ return cur; }, correct, fullText, claudeOut };
