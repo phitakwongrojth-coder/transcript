@@ -618,10 +618,12 @@ function start(){
 function stop(){
   recording = false;
   setUI();
-  if (rec){ try { rec.stop(); } catch(e){ finishStop(); } setTimeout(() => { if (rec){ try{rec.abort();}catch(e){} rec = null; finishStop(); } }, 2500); }
+  const r = rec;
+  if (r){ try { r.stop(); } catch(e){ finishStop(); } setTimeout(() => { if (rec === r && !recording){ try{ r.abort(); }catch(e){} rec = null; finishStop(); } }, 2500); }
   else finishStop();
 }
 function finishStop(){
+  if (recording) return;
   if (startedAt){ cur.elapsed += Date.now() - startedAt; startedAt = 0; }
   clearInterval(tick); tick = null;
   wakeOff(); setUI(); updateTimer(); updateEmpty(); saveSessions();
